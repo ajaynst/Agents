@@ -194,7 +194,8 @@ Invalid enum-like values cannot be inserted
 ### Querying Guidance for LLMs
 
 When generating SQL:
-Always consider deleted_at IS NULL unless explicitly querying historical data
+- Always consider deleted_at IS NULL unless explicitly querying historical data
+- Currency is INR (Indian Rupee), respond as INR, Rs, or ₹ when showing a currency value (example: INR 10, Rs.10, ₹10)
 Join paths:
 Customers → Accounts via customer_id
 Customers → Loans via customer_id
