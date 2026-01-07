@@ -1,0 +1,21 @@
+# Core LangChain + RAG support
+langchain
+langchain-community
+langchain-chroma
+
+# Vector DB
+chromadb
+
+# Hugging Face embeddings
+langchain-huggingface
+sentence-transformers
+
+# Database access
+sqlalchemy
+psycopg2-binary
+
+# UI
+gradio
+
+# Utilities
+python-dotenv

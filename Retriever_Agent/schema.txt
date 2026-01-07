@@ -1,0 +1,215 @@
+### Customers Table
+
+Represents individual bank customers.
+Primary key: customer_id (uuid)
+
+Important fields
+full_name: customer’s legal name
+kyc_status: regulatory verification status
+Allowed values: PENDING, VERIFIED
+
+Lifecycle
+Soft deleted using deleted_at
+created_at and updated_at are system-managed
+
+Relationships
+One customer can have:
+multiple accounts
+multiple loans
+
+CREATE TABLE public.customers (
+    customer_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    full_name text NOT NULL,
+    kyc_status text,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp without time zone,
+    CONSTRAINT customers_kyc_status_check CHECK ((kyc_status = ANY (ARRAY['PENDING'::text, 'VERIFIED'::text])))
+);
+
+### Branches Table
+
+Represents physical or logical bank branches.
+Primary key: branch_id (uuid)
+
+Important fields
+branch_name, city
+
+Lifecycle
+Soft deleted using deleted_at
+
+Relationships
+One branch can have:
+many accounts
+many loans
+
+
+CREATE TABLE public.branches (
+    branch_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    branch_name text NOT NULL,
+    city text,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp without time zone
+);
+
+### Accounts Table
+
+Represents customer bank accounts.
+Primary key: account_id (uuid)
+Foreign keys
+customer_id → customers.customer_id
+branch_id → branches.branch_id
+
+Important fields
+account_type: type of account
+Allowed values: SAVINGS, CURRENT, FD
+balance: monetary balance (decimal, 2 places)
+opened_at: account opening date
+
+Lifecycle
+Soft deleted using deleted_at
+updated_at is auto-updated on every modification
+
+Cardinality
+One customer → many accounts
+One branch → many accounts
+
+CREATE TABLE public.accounts (
+    account_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    customer_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    account_type text,
+    balance numeric(12,2),
+    opened_at date,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp without time zone,
+    CONSTRAINT accounts_account_type_check CHECK ((account_type = ANY (ARRAY['SAVINGS'::text, 'CURRENT'::text, 'FD'::text])))
+);
+
+### Loans Table
+
+Represents loans issued to customers.
+Primary key: loan_id (uuid)
+Foreign keys
+customer_id → customers.customer_id
+branch_id → branches.branch_id
+
+Important fields
+
+loan_type: HOME, PERSONAL, AUTO
+principal: loan amount
+interest_rate: percentage value
+tenure_months: loan duration
+disbursed_at: loan start date
+status: loan state
+Allowed values: ACTIVE, CLOSED, NPA
+
+Lifecycle
+Soft deleted using deleted_at
+
+Cardinality
+One customer → many loans
+One loan → many repayments
+
+CREATE TABLE public.loans (
+    loan_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    customer_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    loan_type text,
+    principal numeric(12,2),
+    interest_rate numeric(5,2),
+    tenure_months integer,
+    disbursed_at date,
+    status text,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp without time zone,
+    CONSTRAINT loans_loan_type_check CHECK ((loan_type = ANY (ARRAY['HOME'::text, 'PERSONAL'::text, 'AUTO'::text]))),
+    CONSTRAINT loans_status_check CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'CLOSED'::text, 'NPA'::text])))
+);
+
+### Repayments Table
+
+Represents scheduled and actual loan repayments.
+Primary key: repayment_id (uuid)
+Foreign key
+loan_id → loans.loan_id
+
+Important fields
+due_date
+paid_date
+amount_due
+amount_paid
+
+Lifecycle
+Soft deleted using deleted_at
+
+Interpretation notes
+A repayment may exist without being paid yet (paid_date nullable)
+Partial payments are possible (amount_paid may differ from amount_due)
+
+CREATE TABLE public.repayments (
+    repayment_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    loan_id uuid NOT NULL,
+    due_date date,
+    paid_date date,
+    amount_due numeric(12,2),
+    amount_paid numeric(12,2),
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp without time zone
+);
+
+
+CREATE TRIGGER trg_accounts_updated_at BEFORE UPDATE ON public.accounts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+> Likewise trigger for all other tables (customers, branches, loans, and repayments.)
+
+### Soft Deletes
+
+All tables contain deleted_at.
+A record is considered active if deleted_at IS NULL
+Most analytical or operational queries should filter out soft-deleted rows
+
+Audit Timestamps
+
+All tables contain:
+created_at
+updated_at
+updated_at is automatically updated via database trigger on every row update.
+
+### UUID Usage
+
+All primary keys use UUIDs generated via gen_random_uuid().
+IDs are non-sequential
+No semantic meaning should be inferred from UUID values
+
+### Business Constraints
+
+Account types, loan types, loan status, and KYC status are restricted via CHECK constraints
+Referential integrity is enforced using foreign keys
+Invalid enum-like values cannot be inserted
+
+### Querying Guidance for LLMs
+
+When generating SQL:
+Always consider deleted_at IS NULL unless explicitly querying historical data
+Join paths:
+Customers → Accounts via customer_id
+Customers → Loans via customer_id
+Loans → Repayments via loan_id
+Branches link to Accounts and Loans via branch_id
+
+Do not assume:
+one account per customer
+one loan per customer
+full repayment in a single installment
+
+### Common Analytical Intent Mapping
+
+Customer financial exposure → accounts + loans
+Branch performance → aggregate accounts and loans by branch
+Loan health → loan status + unpaid repayments
+Regulatory checks → customers with kyc_status = 'PENDING'
+Delinquency analysis → repayments where paid_date IS NULL AND due_date < CURRENT_DATE

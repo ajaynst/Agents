@@ -1,0 +1,17 @@
+# Core LangChain + RAG support
+pip install langchain langchain-community langchain-chroma
+
+# Vector DB
+pip install chromadb
+
+# Hugging Face embeddings
+pip install langchain-huggingface sentence_transformers
+
+# Database access
+pip install sqlalchemy psycopg2-binary
+
+# Gradio UI
+pip install gradio
+
+# Optional utilities (if missing)
+pip install python-dotenv
