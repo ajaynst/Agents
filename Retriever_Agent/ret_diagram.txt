@@ -1,0 +1,36 @@
++-------------------------+
+|     User Question       |
++-------------------------+
+           |
+           v
++-------------------------+
+|   LangChain RAG Agent   |
++-------------------------+
+           |
+           v
++-----------------------------------+      +-----------------------------+
+|        `query_vecdb` Tool         |----->|    Chroma Vector Store      |
+|   (Calls Schema Retriever)        |      | (Embeddings of docs/*.txt)  |
++-----------------------------------+      +-----------------------------+
+           |
+           v
++-------------------------+
+|  LLM (ChatGroq)         |
+| (Generates SQL Query)   |
++-------------------------+
+           |
+           v
++-------------------------+      +-----------------------------+
+|    `run_sql_query` Tool |----->|     PostgreSQL Database     |
+| (Executes SQL)          |      | (Connected via SQLAlchemy)  |
++-------------------------+      +-----------------------------+
+           |
+           v
++-------------------------+
+|   Final Answer to User  |
++-------------------------+
+
+Other Tools Available to the Agent:
+- `get_table_schema`
+- `list_table`
+- `request_clarification`

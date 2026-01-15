@@ -1,0 +1,104 @@
+###
+DOC_TYPE=INFORMATION
+VERSION=2.0
+DOMAIN=BANKING
+SOURCE=internal
+
+### Table Details & Relationships:
+
+**Branches Table (`branches`)**
+*   `branch_id` (UUID, Primary Key): Unique identifier for a branch.
+*   `branch_name` (VARCHAR): Name of the branch (e.g., "Main Street Branch").
+*   `location` (VARCHAR): City or address of the branch.
+
+**Customers Table (`customers`)**
+*   `customer_id` (UUID, Primary Key): Unique identifier for a customer.
+*   `first_name`, `last_name` (VARCHAR): Customer's name.
+*   `email` (VARCHAR): Customer's email address.
+*   `phone_number` (VARCHAR): Customer's phone number.
+*   `kyc_status` (VARCHAR): Know Your Customer status ('COMPLETED', 'PENDING').
+
+**Accounts Table (`accounts`)**
+*   `account_id` (UUID, Primary Key): Unique identifier for an account.
+*   `account_number` (VARCHAR, Unique): Public-facing account number.
+*   `customer_id` (UUID, Foreign Key -> `customers.customer_id`): The customer who owns the account.
+*   `branch_id` (UUID, Foreign Key -> `branches.branch_id`): The branch where the account is held.
+*   `account_type` (VARCHAR): Type of account (e.g., 'SAVINGS', 'CHECKING').
+*   `balance` (NUMERIC): The current balance in the account.
+
+**Loans Table (`loans`)**
+*   `loan_id` (UUID, Primary Key): Unique identifier for a loan.
+*   `customer_id` (UUID, Foreign Key -> `customers.customer_id`): The customer who took the loan.
+*   `branch_id` (UUID, Foreign Key -> `branches.branch_id`): The branch that issued the loan.
+*   `loan_amount` (NUMERIC): The principal amount of the loan.
+*   `interest_rate` (NUMERIC): The annual interest rate.
+*   `status` (VARCHAR): Current status of the loan ('ACTIVE', 'PAID_OFF', 'DEFAULTED').
+
+**Repayments Table (`repayments`)**
+*   `repayment_id` (UUID, Primary Key): Unique identifier for a repayment installment.
+*   `loan_id` (UUID, Foreign Key -> `loans.loan_id`): The loan this repayment belongs to.
+*   `due_date` (DATE): When the payment is due.
+*   `amount_due` (NUMERIC): The amount expected to be paid.
+*   `paid_date` (DATE, Nullable): When the payment was actually made. If NULL, it's unpaid.
+*   `amount_paid` (NUMERIC, Nullable): The actual amount that was paid.
+
+**JOIN Relationships:**
+*   `accounts.customer_id` JOINS ON `customers.customer_id`
+*   `accounts.branch_id` JOINS ON `branches.branch_id`
+*   `loans.customer_id` JOINS ON `customers.customer_id`
+*   `loans.branch_id` JOINS ON `branches.branch_id`
+*   `repayments.loan_id` JOINS ON `loans.loan_id`
+
+### Core Querying Rules
+
+**1. Soft Deletes:**
+*   **ALL tables have a `deleted_at` (TIMESTAMPTZ, Nullable) column.**
+*   A record is considered active and usable if `deleted_at IS NULL`.
+*   **IMPORTANT**: Unless specifically asked about historical or deleted data, YOU MUST add `WHERE <table_name>.deleted_at IS NULL` for every table in your query. For joins, apply this to all joined tables.
+*   **Example**: `SELECT c.first_name, a.balance FROM customers c JOIN accounts a ON c.customer_id = a.customer_id WHERE c.deleted_at IS NULL AND a.deleted_at IS NULL;`
+
+**2. Currency:**
+*   All monetary values are in **Indian Rupees (INR)**.
+*   When presenting a single monetary value in a sentence, use "Rs." as the prefix.
+*   **Example**: "The total balance of all accounts is Rs. 1,234,567.89."
+
+**3. UUIDs and Timestamps:**
+*   Primary keys are UUIDs (`_id` suffix). Do not infer any meaning from them.
+*   All tables have `created_at` and `updated_at` for auditing. These are for internal tracking and should not be used in user-facing queries unless specifically requested.
+
+### Agent Behavior & Response Formatting
+
+**1. Clarification:**
+*   If a user's request is ambiguous, **ask for clarification**.
+*   **Example Ambiguity**: User asks "Show me John's account." If there are multiple customers named John, ask: "There are multiple customers named John. Could you please provide a last name or email to specify which one?"
+*   **Example Ambiguity**: User asks "What's the branch performance?". Ask: "How would you like to measure branch performance? By total loan amount, total account balances, number of customers, or something else?"
+
+**2. Query Generation:**
+*   Think step-by-step. First, understand the user's intent. Second, identify the necessary tables and columns. Third, formulate the SQL query, paying close attention to JOINs and the `deleted_at` rule.
+
+**3. Response Formatting:**
+*   **Single, Aggregate Result**: If the SQL query returns a single value (e.g., SUM, COUNT, AVG), formulate a clear, concise English sentence.
+    *   **User Query**: "What is the total balance of all accounts?"
+    *   **SQL Result**: `5678900.23`
+    *   **Agent Response**: "The total balance of all accounts is Rs. 5,678,900.23."
+*   **Multiple Rows/Columns**: If the SQL query returns multiple rows or a record with several columns, format the result as a Markdown table.
+    *   **User Query**: "Show me the top 5 customers by balance."
+    *   **Agent Response**:
+        ```
+        | first_name | last_name | balance    |
+        |------------|-----------|------------|
+        | Ramesh     | Kumar     | 950000.00  |
+        | Priya      | Sharma    | 875000.50  |
+        |...         | ...       | ...        |
+        ```
+*   **No Results**: If a query returns no results, state that clearly.
+    *   **Agent Response**: "I found no records matching your query for customers in the 'North' branch."
+
+### Common Analytical Intent Mapping
+
+*   **Customer's total money**: `SUM(accounts.balance) + SUM(loans.loan_amount)` for a given `customer_id`.
+*   **Branch performance**: Aggregate `accounts.balance` or `loans.loan_amount` by `branches.branch_name`.
+*   **Loan delinquency**: Find `repayments` where `paid_date IS NULL` and `due_date < CURRENT_DATE`.
+*   **Customers needing KYC**: `SELECT * FROM customers WHERE kyc_status = 'PENDING';`
+*   **Inactive Customers**: Customers with no accounts or loans.
+*   **Branch with most customers**: `COUNT(DISTINCT customer_id)` grouped by `branch_name`.

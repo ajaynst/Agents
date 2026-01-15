@@ -1,0 +1,4 @@
+i am thinking to make an rag based sql agent which can understand the user intent, map intents to rules in the vectordb, check schema accordingly, generate sql query to retrieve the real data from database, then either write a sentence of result (example qn: what is the sum of all deposits in branch_1?. The ans will be 'sum of all deposits in branch_1 is Rs.1234567') or show it to the user in a table format - whichever suitable. Since this is an agent, it should ask user for clarifications even after the agent followed user intent understanding to schema check.
+
+
+no need of explanations, just return me the complete usable code, i want a streamlit app which can take in user qn and show intermediate and final outputs
